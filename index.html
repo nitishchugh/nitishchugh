@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DP for Nitish</title>
+    <style>
+      body {
+        font-family: "Arial", sans-serif;
+        background-color: #3404ba;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
+      h1 {
+        margin-top: 20px;
+        font-size: 2rem;
+        color: #fcfcfc;
+      }
+
+      .container {
+        width: 90%;
+        max-width: 1000px;
+        text-align: center;
+        background-color: white;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+
+      .buttons {
+        display: flex;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 20px;
+      }
+
+      .buttons button,
+      .buttons input[type="file"],
+      .buttons input[type="text"] {
+        padding: 10px 15px;
+        font-size: 16px;
+        border-radius: 5px;
+        border: none;
+        background-color: #007bff;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+      }
+
+      .buttons input[type="text"] {
+        /* Specific styling for the name input field */
+        width: 200px; /* Adjust width of the input field */
+        text-align: center; /* Center text inside the input field */
+        margin-bottom: 10px; /* Space between the input field and the buttons */
+      }
+
+      /* Change placeholder text color to white */
+      .buttons input[type="text"]::placeholder {
+        color: white; /* Set placeholder text color to white */
+      }
+
+      .buttons button:hover,
+      .buttons input[type="file"]:hover,
+      .buttons input[type="text"]:hover {
+        background-color: #0056b3; /* Darker blue on hover */
+      }
+
+      .buttons button:disabled {
+        background-color: #ddd;
+        cursor: not-allowed;
+      }
+
+      #photoCanvas {
+        border: 4px solid #007bff;
+        border-radius: 10px;
+        margin: 0 auto;
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
+
+      #downloadBtn {
+        padding: 12px 20px;
+        font-size: 18px;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 15px;
+        transition: background-color 0.3s ease;
+      }
+
+      #downloadBtn:hover {
+        background-color: #218838;
+      }
+
+      #downloadBtn:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+      }
+
+      .zoom-buttons {
+        margin-top: 10px;
+      }
+
+      .zoom-buttons button {
+        padding: 10px;
+        font-size: 18px;
+        margin: 5px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 5px;
+      }
+
+      #video {
+        display: none;
+        width: 100%;
+        max-width: 300px;
+        margin: 0 auto;
+        border-radius: 10px;
+        margin-bottom: 20px;
+      }
+
+      footer {
+        margin-top: 20px;
+        text-align: center;
+        font-size: 1.2rem;
+        color: #333;
+        background-color: #f4f4f9;
+        padding: 10px;
+        border-top: 1px solid #ddd;
+      }
+
+      footer span {
+        color: #007bff;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Support CA. Chugh Nitish — Ballot No. 6: NIRC Election of ICAI</h1>
+
+    <div class="container">
+      <!-- Buttons to either upload or capture photo -->
+      <div class="buttons">
+        <div>
+          <label for="nameInput">Enter Name: </label>
+          <input type="text" id="nameInput" placeholder="Do not prefix CA" />
+        </div>
+        <input type="file" id="uploadPhoto" accept="image/*" />
+
+        <!-- New button for camera capture -->
+        <button id="captureBtn">Capture Photo with Camera</button>
+      </div>
+
+      <!-- Video element for showing camera feed -->
+      <video
+        id="video"
+        width="300"
+        height="300"
+        autoplay
+        style="display: none"
+      ></video>
+
+      <canvas id="photoCanvas"></canvas>
+
+      <!-- Zoom In and Zoom Out buttons placed above the download button -->
+      <div class="zoom-buttons">
+        <button id="zoomInBtn">Zoom In</button>
+        <button id="zoomOutBtn">Zoom Out</button>
+      </div>
+      <!-- Footer with tagline -->
+      <button id="downloadBtn" disabled>Download Photo</button>
+    </div>
+
+    <script>
+      const uploadPhoto = document.getElementById("uploadPhoto");
+      const canvas = document.getElementById("photoCanvas");
+      const ctx = canvas.getContext("2d");
+      const downloadBtn = document.getElementById("downloadBtn");
+      const zoomInBtn = document.getElementById("zoomInBtn");
+      const zoomOutBtn = document.getElementById("zoomOutBtn");
+      const video = document.getElementById("video");
+      const captureBtn = document.getElementById("captureBtn");
+      const nameInput = document.getElementById("nameInput");
+
+      let guestName = ""; // Variable to store the name input
+
+      // Update guestName when the input field changes
+      nameInput.addEventListener("input", (e) => {
+        guestName = "CA " + e.target.value.toUpperCase(); // Add "CA" and convert name to uppercase
+      });
+
+      let frameImage = new Image();
+      frameImage.src = "frame.png"; // Path to your frame
+
+      let guestImage = null; // To store the uploaded or captured image
+      let scale = 0.4;
+      let offsetX = 0;
+      let offsetY = 0;
+      let isDragging = false;
+      let startX, startY;
+
+      // Load the frame image
+      frameImage.onload = () => {
+        canvas.width = frameImage.width;
+        canvas.height = frameImage.height;
+        drawCanvas(); // Draw the frame initially
+      };
+
+      // Function to fit the image properly in the canvas
+      function fitImageToCanvas() {
+        const canvasAspect = canvas.width / canvas.height;
+        const imageAspect = guestImage.width / guestImage.height;
+
+        if (imageAspect > canvasAspect) {
+          scale = (canvas.width / guestImage.width) * 0.4; // Scale image to fit the width
+        } else {
+          scale = (canvas.height / guestImage.height) * 0.4; // Scale image to fit the height
+        }
+
+        offsetX =
+          (canvas.width - guestImage.width * scale) / 2 +
+          canvas.width * (28 / 100);
+        offsetY =
+          (canvas.height - guestImage.height * scale) / 2 +
+          canvas.height * (30 / 100);
+      }
+
+      // Function to draw the text (name) at the top of the canvas
+      function drawText() {
+        const maxWidth = canvas.width * 0.4;
+        let fontSize = 30; // Initial font size
+
+        // Calculate the width of the text with the current font size
+        ctx.font = `750 ${fontSize}px Arial`;
+        let textWidth = ctx.measureText(guestName).width;
+
+        // Reduce font size if text is too long to fit
+        while (textWidth > maxWidth && fontSize > 10) {
+          fontSize -= 1; // Decrease font size by 2px
+          ctx.font = `750 ${fontSize}px Arial`;
+          textWidth = ctx.measureText(guestName).width;
+        }
+
+        // First, draw the name at the top of the canvas
+        // ctx.font = "750 30px Arial"; // Set font size and family
+        ctx.fillStyle = "#383C64";
+        ctx.textAlign = "center"; // Center-align the text horizontally
+        ctx.textBaseline = "top"; // Align text from the top of the canvas
+
+        const ox = canvas.width / 2 + canvas.width * (28 / 100);
+        const oy = canvas.height / 2 + canvas.height * (3 / 100);
+        ctx.fillText(guestName, ox, oy); // Draw the name slightly below the top edge
+      }
+
+      function drawCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Then, draw the guest image
+        if (guestImage) {
+          const imgWidth = guestImage.width * scale;
+          const imgHeight = guestImage.height * scale;
+          ctx.drawImage(guestImage, offsetX, offsetY, imgWidth, imgHeight);
+        }
+
+        // Finally, draw the frame on top of the image and name
+        ctx.drawImage(frameImage, 0, 0, canvas.width, canvas.height);
+
+        // Draw the text first
+        drawText();
+      }
+
+      // Handle file upload
+      uploadPhoto.addEventListener("change", (e) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          guestImage = new Image();
+          guestImage.onload = () => {
+            fitImageToCanvas(); // Scale the image properly
+            drawCanvas(); // Draw the canvas
+            downloadBtn.disabled = false; // Enable the download button
+          };
+          guestImage.src = event.target.result;
+        };
+        reader.readAsDataURL(e.target.files[0]);
+      });
+
+      // **Capture Photo from Camera**
+      captureBtn.addEventListener("click", async () => {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          video.srcObject = stream;
+          video.style.display = "block";
+          captureBtn.textContent = "Take Photo";
+
+          captureBtn.onclick = () => {
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = video.videoWidth;
+            tempCanvas.height = video.videoHeight;
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCtx.drawImage(video, 0, 0, tempCanvas.width, tempCanvas.height);
+
+            guestImage = new Image();
+            guestImage.onload = () => {
+              fitImageToCanvas(); // Scale and fit the image
+              drawCanvas(); // Draw canvas with captured photo and frame
+              downloadBtn.disabled = false; // Enable download button
+            };
+            guestImage.src = tempCanvas.toDataURL("image/png");
+
+            const tracks = video.srcObject.getTracks();
+            tracks.forEach((track) => track.stop());
+            video.style.display = "none";
+            captureBtn.textContent = "Capture Photo with Camera";
+          };
+        }
+      });
+
+      // Zoom In and Zoom Out functionality
+      zoomInBtn.addEventListener("click", () => {
+        scale *= 1.1; // Increase scale by 10%
+        drawCanvas();
+      });
+
+      zoomOutBtn.addEventListener("click", () => {
+        scale *= 0.9; // Decrease scale by 10%
+        drawCanvas();
+      });
+
+      // Mouse events for dragging the image
+      canvas.addEventListener("mousedown", (e) => {
+        isDragging = true;
+        startX = e.offsetX;
+        startY = e.offsetY;
+      });
+
+      canvas.addEventListener("mousemove", (e) => {
+        if (isDragging && guestImage) {
+          const dx = e.offsetX - startX;
+          const dy = e.offsetY - startY;
+          offsetX += dx;
+          offsetY += dy;
+          startX = e.offsetX;
+          startY = e.offsetY;
+          drawCanvas();
+        }
+      });
+
+      canvas.addEventListener("mouseup", () => {
+        isDragging = false;
+      });
+
+      canvas.addEventListener("mouseleave", () => {
+        isDragging = false;
+      });
+
+      // For touch events (for mobile)
+      canvas.addEventListener("touchstart", (e) => {
+        e.preventDefault(); // Prevent default touch behavior (e.g., scrolling)
+        isDragging = true;
+        startX = e.touches[0].clientX - canvas.offsetLeft;
+        startY = e.touches[0].clientY - canvas.offsetTop;
+      });
+
+      canvas.addEventListener("touchmove", (e) => {
+        if (isDragging && guestImage) {
+          const dx = e.touches[0].clientX - canvas.offsetLeft - startX;
+          const dy = e.touches[0].clientY - canvas.offsetTop - startY;
+          offsetX += dx;
+          offsetY += dy;
+          startX = e.touches[0].clientX - canvas.offsetLeft;
+          startY = e.touches[0].clientY - canvas.offsetTop;
+          drawCanvas();
+        }
+      });
+
+      canvas.addEventListener("touchend", () => {
+        isDragging = false;
+      });
+
+      canvas.addEventListener("touchcancel", () => {
+        isDragging = false;
+      });
+
+      // Download functionality
+      downloadBtn.addEventListener("click", () => {
+        const link = document.createElement("a");
+        link.download = "Your DP for NitishChugh.png";
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      });
+    </script>
+  </body>
+</html>
